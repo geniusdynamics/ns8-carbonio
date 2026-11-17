@@ -1,19 +1,24 @@
 {
-  "name": "kickstart",
+  "name": "Carbonio CE",
+  "upstream_name": "Carbonio CE 26.9",
   "description": {
-    "en": "My kickstart module"
+    "en": "Mail and collaboration server: webmail, calendars, contacts, IMAP, POP3 and SMTP. Single server or multi-server. Unofficial, not endorsed by Zextras."
   },
-  "categories": [],
+  "categories": [
+    "email",
+    "collaboration"
+  ],
   "authors": [
     {
-      "name": "Name Surname",
-      "email": "author@yourmail.org"
+      "name": "Genius Dynamics",
+      "email": "support@genius.africa"
     }
   ],
   "docs": {
-    "documentation_url": "https://docs.kickstart.com/",
-    "bug_url": "https://github.com/NethServer/dev",
-    "code_url": "https://github.com/author/ns8-kickstart"
+    "documentation_url": "https://github.com/geniusdynamics/ns8-carbonio#readme",
+    "bug_url": "https://github.com/geniusdynamics/ns8-carbonio/issues",
+    "code_url": "https://github.com/geniusdynamics/ns8-carbonio",
+    "relnotes_url": "https://github.com/geniusdynamics/ns8-carbonio/releases"
   },
-  "source": "ghcr.io/nethserver/kickstart"
+  "source": "ghcr.io/geniusdynamics/carbonio"
 }

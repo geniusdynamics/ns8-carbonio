@@ -84,10 +84,18 @@ mkdir -p "${status_dir}"
 # Secrets: read without eval and without ever printing them
 #
 declare -A secret=()
+# Generated passwords are alphanumeric; the administrator's one avoids the
+# characters that the Carbonio setup scripts cannot quote
+generated_re='^[A-Za-z0-9_.-]+$'
+admin_re='^[][A-Za-z0-9!#%&()*+,./:;<=>?@^_{|}~-]+$'
 if [[ -r "${secrets_file}" ]]; then
     while IFS='=' read -r key value; do
         [[ "${key}" =~ ^CARBONIO_[A-Z_]+_PASSWORD$ ]] || continue
-        [[ "${value}" =~ ^[A-Za-z0-9_.-]+$ ]] || die "invalid characters in ${key}" 2
+        if [[ "${key}" == CARBONIO_ADMIN_PASSWORD ]]; then
+            [[ "${value}" =~ ${admin_re} ]] || die "invalid characters in ${key}" 2
+        else
+            [[ "${value}" =~ ${generated_re} ]] || die "invalid characters in ${key}" 2
+        fi
         secret[${key}]=${value}
     done <"${secrets_file}"
 fi
@@ -441,7 +449,7 @@ apply_settings() {
 # Host names of the other Carbonio servers of the cluster, resolved to
 # their WireGuard addresses: /run/ns8-carbonio/hosts is written by the NS8
 # module and can change while the container runs
-hosts_file=/run/ns8-carbonio/hosts
+hosts_file=/run/ns8-carbonio/runtime/hosts
 hosts_applied=""
 sync_hosts() {
     local current tmp
@@ -488,13 +496,13 @@ restore_from_dumps() {
             umask 077
             printf '[client]\nuser=root\npassword=%s\nsocket=%s\n' \
                 "$(zx 'zmlocalconfig -s -m nokey mysql_root_password')" \
-                "$(zx 'zmlocalconfig -m nokey mysql_socket')" >"${optfile}"
+                "$(awk -F'= *' '/^socket/ { print $2; exit }' /opt/zextras/conf/my.cnf)" >"${optfile}"
         )
         zcat "${restore_dir}/mariadb.sql.gz" | /opt/zextras/common/bin/mysql --defaults-extra-file="${optfile}" \
             || { rm -f "${optfile}"; die "loading the mailbox database dump failed" 1; }
         rm -f "${optfile}"
     fi
-    rm -f "${restore_dir}/restore.request"
+    rm -f "${restore_dir}/restore.request" "${restore_dir}/ldap.ldif" "${restore_dir}/mariadb.sql.gz"
     log "Restore from the backup dumps completed"
 }
 

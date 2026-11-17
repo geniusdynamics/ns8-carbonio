@@ -12,6 +12,7 @@
 #
 
 set -euo pipefail
+umask 077
 out=${1:?usage: carbonio-dump DIR}
 mkdir -p "${out}"
 tmp=$(mktemp -d /opt/zextras/data/tmp/ns8-dump.XXXXXX)
@@ -31,11 +32,12 @@ if [[ -S /run/carbonio/mysql.sock ]] || pgrep -x mariadbd >/dev/null; then
         umask 077
         printf '[client]\nuser=root\npassword=%s\nsocket=%s\n' \
             "$(su - zextras -c 'zmlocalconfig -s -m nokey mysql_root_password')" \
-            "$(su - zextras -c 'zmlocalconfig -m nokey mysql_socket')" >"${tmp}/my.cnf"
+            "$(awk -F'= *' '/^socket/ { print $2; exit }' /opt/zextras/conf/my.cnf)" >"${tmp}/my.cnf"
     )
     /opt/zextras/common/bin/mysqldump --defaults-extra-file="${tmp}/my.cnf" \
         --all-databases --single-transaction --quick --routines --events \
-        --add-drop-database --skip-dump-date | gzip -c >"${out}/mariadb.sql.gz.tmp"
+        --add-drop-database --skip-dump-date >"${tmp}/mariadb.sql"
+    gzip -c "${tmp}/mariadb.sql" >"${out}/mariadb.sql.gz.tmp"
     chmod 0600 "${out}/mariadb.sql.gz.tmp"
     mv -f "${out}/mariadb.sql.gz.tmp" "${out}/mariadb.sql.gz"
     echo "Mailbox database dumped" >&2

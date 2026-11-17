@@ -1,26 +1,48 @@
 #!/usr/bin/env python3
 
 #
-# Copyright (C) 2022 Nethesis S.r.l.
+# Copyright (C) 2026 Genius Dynamics
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-#
-# Read configuration
-#
+# Current configuration. Every reader can run this action: secrets are
+# reported only as *_set booleans.
 
+import json
 import os
 import sys
-import json
+
 import agent
+import carbonio
 
-# Prepare return variable
-config = {}
+env = carbonio.env
+secrets_map = carbonio.read_secrets()
+route = agent.get_route(os.environ["MODULE_ID"]) if env("TRAEFIK_HOST") else {}
 
-# Read current configuration from the environment file
-config["host"] = os.getenv("TRAEFIK_HOST","")
-config["http2https"] = os.getenv("TRAEFIK_HTTP2HTTPS") == "True"
-config["lets_encrypt"] = agent.get_route(os.environ['MODULE_ID']).get('lets_encrypt', False)
+try:
+    with open(os.path.join(os.environ["AGENT_INSTALL_DIR"], "etc", "carbonio-release")) as frel:
+        image_release = frel.read().strip()
+except FileNotFoundError:
+    image_release = ""
 
-# Dump the configuration to stdout
+config = {
+    "host": env("TRAEFIK_HOST"),
+    "http2https": env("TRAEFIK_HTTP2HTTPS", "True").lower() == "true",
+    "lets_encrypt": bool(route.get("lets_encrypt", False)),
+    "cluster_role": carbonio.cluster_role(),
+    "join": env("CARBONIO_JOIN"),
+    "accept_join": carbonio.is_true(env("CARBONIO_ACCEPT_JOIN", "true")),
+    "mail_domain": env("CARBONIO_MAIL_DOMAIN"),
+    "admin_user": env("CARBONIO_ADMIN_USER", "admin"),
+    "admin_password_set": carbonio.initialized() or bool(secrets_map.get("CARBONIO_ADMIN_PASSWORD")),
+    "admin_host": env("CARBONIO_ADMIN_HOSTNAME"),
+    "antivirus": carbonio.is_true(env("CARBONIO_ANTIVIRUS", "true")),
+    "mailbox_heap_mb": int(env("CARBONIO_MAILBOX_HEAP_MB", "1536")),
+    "timezone": env("CARBONIO_TIMEZONE") or carbonio.get_timezone(),
+    "features": {name: False for name in carbonio.FUTURE_FEATURES},
+    "initialized": carbonio.initialized(),
+    "release": env("CARBONIO_RELEASE") or image_release,
+    "ldap_secrets_set": all(secrets_map.get(k) for k in carbonio.SHARED_SECRETS),
+    "available_masters": carbonio.list_masters(),
+}
 json.dump(config, fp=sys.stdout)

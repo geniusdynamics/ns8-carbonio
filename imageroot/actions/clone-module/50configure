@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Start the cloned server with its previous settings. Let's Encrypt is
+# never requested here: the DNS may not point to this node yet.
+
+import os
+
+import agent
+import agent.tasks
+
+env = os.environ
+data = {
+    "host": env["TRAEFIK_HOST"],
+    "http2https": env.get("TRAEFIK_HTTP2HTTPS", "True").lower() == "true",
+    "lets_encrypt": False,
+    "cluster_role": env.get("CARBONIO_CLUSTER_ROLE", "standalone"),
+    "accept_join": env.get("CARBONIO_ACCEPT_JOIN", "true").lower() == "true",
+    "admin_host": env.get("CARBONIO_ADMIN_HOSTNAME", ""),
+    "antivirus": env.get("CARBONIO_ANTIVIRUS", "true").lower() == "true",
+    "mailbox_heap_mb": int(env.get("CARBONIO_MAILBOX_HEAP_MB", "1536")),
+    "timezone": env.get("CARBONIO_TIMEZONE", "UTC"),
+}
+if data["cluster_role"] == "worker":
+    data["join"] = env.get("CARBONIO_JOIN", "")
+ret = agent.tasks.run(agent_id=env["AGENT_ID"], action="configure-module", data=data)
+agent.assert_exp(ret["exit_code"] == 0, "configure-module failed")
