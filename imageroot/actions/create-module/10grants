@@ -1,0 +1,14 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e
+exec 1>&2
+
+# carbonio-peer: the role that the other Carbonio instances (label
+# carbonio@any:carbonio-peer) and ns8-carbonio-proxy hold on this one. A
+# joining server asks a master for the sealed bootstrap secrets.
+redis-exec SADD "${AGENT_ID}/roles/carbonio-peer" "seal-join-bundle"

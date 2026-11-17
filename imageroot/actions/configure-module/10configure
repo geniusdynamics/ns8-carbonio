@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import os
+import sys
+
+import agent
+import carbonio
+
+request = json.load(sys.stdin)
+env = carbonio.env
+initialized = carbonio.initialized()
+host = request["host"].lower()
+role = request.get("cluster_role", carbonio.cluster_role())
+
+with open(os.path.join(os.environ["AGENT_INSTALL_DIR"], "etc", "carbonio-release")) as frel:
+    release = frel.read().strip()
+
+settings = {
+    "TRAEFIK_HOST": host,
+    "TRAEFIK_HTTP2HTTPS": str(request.get("http2https", True)),
+    "TRAEFIK_LETS_ENCRYPT": str(request.get("lets_encrypt", False)),
+    "CARBONIO_CLUSTER_ROLE": role,
+    "CARBONIO_ACCEPT_JOIN": str(request.get("accept_join", carbonio.is_true(env("CARBONIO_ACCEPT_JOIN", "true")))).lower(),
+    "CARBONIO_ADMIN_HOSTNAME": request.get("admin_host", env("CARBONIO_ADMIN_HOSTNAME")).lower(),
+    "CARBONIO_ANTIVIRUS": str(request.get("antivirus", carbonio.is_true(env("CARBONIO_ANTIVIRUS", "true")))).lower(),
+    "CARBONIO_MAILBOX_HEAP_MB": str(request.get("mailbox_heap_mb", int(env("CARBONIO_MAILBOX_HEAP_MB", "1536")))),
+    "CARBONIO_TIMEZONE": request.get("timezone", env("CARBONIO_TIMEZONE") or carbonio.get_timezone()),
+    "CARBONIO_RELEASE": release,
+}
+if not initialized:
+    # Written in the directory by the first setup: fixed afterwards
+    settings["CARBONIO_HOSTNAME"] = host
+    if role != "worker":
+        settings["CARBONIO_MAIL_DOMAIN"] = request.get("mail_domain", env("CARBONIO_MAIL_DOMAIN") or host.split(".", 1)[1]).lower()
+        settings["CARBONIO_ADMIN_USER"] = request.get("admin_user", env("CARBONIO_ADMIN_USER", "admin"))
+        settings["CARBONIO_JOIN"] = ""
+        settings["CARBONIO_LDAP_HOST"] = host
+        settings["CARBONIO_SMTP_HOST"] = host
+
+secrets_map = carbonio.ensure_secrets()
+changed_secrets = False
+
+if request.get("admin_password"):
+    if initialized:
+        # Applied to the running server by 85admin_password, never stored
+        carbonio.write_file_atomic("admin-password.pending", request["admin_password"] + "\n", 0o600)
+    else:
+        secrets_map["CARBONIO_ADMIN_PASSWORD"] = request["admin_password"]
+        changed_secrets = True
+
+if role == "worker" and not initialized:
+    # Bootstrap secrets of the installation, sealed by the master for us
+    join = request.get("join", env("CARBONIO_JOIN"))
+    agent.set_progress(5)
+    try:
+        bundle, master = carbonio.fetch_join_bundle(join)
+    except Exception as ex:
+        print(agent.SD_ERR + f"Cannot obtain the bootstrap secrets from {join}: {ex}", file=sys.stderr)
+        sys.exit(1)
+    for key in carbonio.SHARED_SECRETS:
+        agent.assert_exp(bundle.get(key), f"{key} missing in the join bundle")
+        secrets_map[key] = bundle[key]
+    secrets_map.pop("CARBONIO_ADMIN_PASSWORD", None)
+    changed_secrets = True
+    settings.update({
+        "CARBONIO_JOIN": join,
+        "CARBONIO_LDAP_HOST": master["fqdn"],
+        "CARBONIO_SMTP_HOST": master["fqdn"],
+        "CARBONIO_MAIL_DOMAIN": master.get("mail_domain", ""),
+    })
+
+if changed_secrets:
+    carbonio.write_secrets(secrets_map)
+
+for key, value in settings.items():
+    agent.set_env(key, value)
+
+# Public mail ports: standalone and master servers own them
+if role in ("standalone", "master"):
+    agent.assert_exp(agent.add_public_service(os.environ["MODULE_ID"], [f"{p}/tcp" for p in carbonio.MAIL_PORTS], replace_ports=True))
+else:
+    agent.remove_public_service(os.environ["MODULE_ID"])

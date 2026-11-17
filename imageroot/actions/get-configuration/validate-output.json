@@ -1,36 +1,40 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get kickstart settings",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/get-configuration",
-    "description": "Get kickstart settings",
-    "examples": [
-        {
-            "host": "kickstart.domain.org",
-            "http2https": true,
-            "lets_encrypt": true
-        }
-    ],
+    "title": "Get Carbonio configuration",
+    "$id": "http://schema.nethserver.org/carbonio/get-configuration-output.json",
     "type": "object",
-    "required": [
-        "host",
-        "http2https",
-        "lets_encrypt"
-    ],
+    "required": ["host", "cluster_role", "initialized", "admin_password_set", "available_masters"],
     "properties": {
-        "host": {
-            "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
-            "format": "idn-hostname"
-        },
-        "lets_encrypt": {
-            "type": "boolean",
-            "title": "Let's Encrypt certificate",
-            "description": "Request a valid Let's Encrypt certificate."
-        },
-        "http2https": {
-            "type": "boolean",
-            "title": "HTTP to HTTPS redirection",
-            "description": "Redirect all the HTTP requests to HTTPS"
+        "host": {"type": "string"},
+        "http2https": {"type": "boolean"},
+        "lets_encrypt": {"type": "boolean"},
+        "cluster_role": {"type": "string", "enum": ["standalone", "master", "worker"]},
+        "join": {"type": "string"},
+        "accept_join": {"type": "boolean"},
+        "mail_domain": {"type": "string"},
+        "admin_user": {"type": "string"},
+        "admin_password_set": {"type": "boolean"},
+        "admin_host": {"type": "string"},
+        "antivirus": {"type": "boolean"},
+        "mailbox_heap_mb": {"type": "integer"},
+        "timezone": {"type": "string"},
+        "features": {"type": "object", "additionalProperties": {"type": "boolean"}},
+        "initialized": {"type": "boolean"},
+        "release": {"type": "string"},
+        "ldap_secrets_set": {"type": "boolean"},
+        "available_masters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["module_id", "fqdn"],
+                "properties": {
+                    "module_id": {"type": "string"},
+                    "fqdn": {"type": "string"},
+                    "node": {"type": "string"},
+                    "release": {"type": "string"},
+                    "mail_domain": {"type": "string"}
+                }
+            }
         }
     }
 }

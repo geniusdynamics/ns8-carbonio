@@ -1,0 +1,67 @@
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Carbonio CE server: one container, without systemd inside (see
+# server/rootfs/usr/local/sbin/carbonio-run). Ports:
+#
+# - web client (443) and Admin Panel (6071) on 127.0.0.1, for Traefik
+# - mail ports on every node address (standalone and master)
+# - cluster ports on the node WireGuard address (master and worker)
+#
+# Exit code 3 of the container is a refusal (downgrade, role change,
+# unknown database schema): it is not retried.
+#
+
+[Unit]
+Description=Carbonio CE server
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%S/state/environment
+# Written by carbonio-prepare (ExecStartPre): systemd reads it again
+# before ExecStart
+EnvironmentFile=-%S/state/runtime/runtime.env
+WorkingDirectory=%S/state
+Restart=on-failure
+RestartSec=30
+RestartPreventExitStatus=3
+TimeoutStartSec=300
+TimeoutStopSec=330
+ExecStartPre=/bin/rm -f %t/carbonio.pid %t/carbonio.ctr-id
+ExecStartPre=runagent carbonio-prepare
+ExecStart=/usr/bin/podman run \
+    --detach \
+    --conmon-pidfile=%t/carbonio.pid \
+    --cidfile=%t/carbonio.ctr-id \
+    --cgroups=no-conmon \
+    --replace --name=carbonio \
+    --hostname=${CARBONIO_HOSTNAME} \
+    $CARBONIO_ULIMIT \
+    --stop-timeout=300 \
+    $CARBONIO_NETWORK \
+    $CARBONIO_PUBLISH \
+    --volume=carbonio-conf:/opt/zextras/conf:Z \
+    --volume=carbonio-data:/opt/zextras/data:Z \
+    --volume=carbonio-db:/opt/zextras/db:Z \
+    --volume=carbonio-ssl:/opt/zextras/ssl:Z \
+    --volume=carbonio-log:/opt/zextras/log:Z \
+    --volume=carbonio-store:/opt/zextras/store:Z \
+    --volume=carbonio-index:/opt/zextras/index:Z \
+    --volume=carbonio-redolog:/opt/zextras/redolog:Z \
+    --volume=%S/state/secrets.env:/run/ns8-carbonio/secrets.env:ro,Z \
+    --volume=%S/state/runtime:/run/ns8-carbonio/runtime:ro,Z \
+    --volume=%S/state/restore:/run/ns8-carbonio/restore:Z \
+    --volume=%S/state/dump:/run/ns8-carbonio/dump:Z \
+    --env-file=%S/state/runtime/container.env \
+    ${CARBONIO_SERVER_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile=%t/carbonio.ctr-id -t 300
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile=%t/carbonio.ctr-id
+PIDFile=%t/carbonio.pid
+Type=forking
+SyslogIdentifier=carbonio
+
+[Install]
+WantedBy=default.target
