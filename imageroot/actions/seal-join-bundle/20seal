@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Genius Dynamics
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Called by a server that joins this master (role carbonio-peer, held by
+# ns8-carbonio and ns8-carbonio-proxy instances, and by cluster owners).
+# Returns the passwords of the LDAP service accounts sealed for the
+# caller's ephemeral key: the task output, kept in Redis, is useless to
+# anyone else.
+#
+
+import json
+import sys
+
+import agent
+import carbonio
+
+request = json.load(sys.stdin)
+env = carbonio.env
+
+if carbonio.cluster_role() != "master" or not carbonio.initialized():
+    print(agent.SD_ERR + "This server is not an initialized master", file=sys.stderr)
+    sys.exit(2)
+if not carbonio.is_true(env("CARBONIO_ACCEPT_JOIN", "true")):
+    print(agent.SD_ERR + "This master does not accept new servers", file=sys.stderr)
+    sys.exit(2)
+
+secrets_map = carbonio.read_secrets()
+payload = {key: secrets_map[key] for key in carbonio.SHARED_SECRETS}
+print(f"Sealed the join bundle for {request['module_id']} ({request.get('fqdn', '')})", file=sys.stderr)
+json.dump({
+    "sealed": carbonio.seal_bundle(request["public_key"], payload),
+    "master": {
+        "module_id": env("MODULE_ID"),
+        "fqdn": env("CARBONIO_HOSTNAME"),
+        "release": env("CARBONIO_RELEASE"),
+        "mail_domain": env("CARBONIO_MAIL_DOMAIN"),
+        "host": carbonio.node_vpn_ip(),
+    },
+}, fp=sys.stdout)
