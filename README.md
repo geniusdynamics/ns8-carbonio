@@ -273,7 +273,7 @@ upgrade path. This repository therefore builds its own runtime image,
 | 25, 465, 587, 110, 143, 993, 995 | every node address | single and main server |
 | web client (443 in the container) | 127.0.0.1, `TCP_PORTS[0]`, behind Traefik | every role |
 | Admin Panel (6071 in the container) | 127.0.0.1, `TCP_PORTS[1]`, behind Traefik with its own host name | every role |
-| 389, 7025, 7071-7073, 7110, 7143, 7993, 7995, 8080, 8443, 11211 | node WireGuard address | main server |
+| 389, 7025, 7071-7073, 7110, 7143, 7993, 7995, 8080, 8443 | node WireGuard address | main server |
 | 7025, 7071-7073, 7110, 7143, 7993, 7995, 8080, 8443 | node WireGuard address | additional mailbox server |
 
 There is one instance per node (`org.nethserver.max-per-node=1`), because the
